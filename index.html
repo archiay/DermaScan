@@ -1,12 +1,1390 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SkinScan</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SkinScan – AI Skin Lesion Analysis</title>
+  <meta name="description" content="AI-powered skin lesion analysis tool for quick, accessible dermatology insights." />
+
+  <!-- ===== STYLES ===== -->
+  <style>
+    /* ---------- CSS Custom Properties / Constants ---------- */
+    :root {
+      --color-primary:       #6c63ff;
+      --color-primary-dark:  #5a52d5;
+      --color-secondary:     #ff6584;
+      --color-success:       #48bb78;
+      --color-warning:       #f6ad55;
+      --color-danger:        #fc8181;
+      --color-bg:            #0f0f23;
+      --color-surface:       #1a1a3e;
+      --color-surface-light: #252550;
+      --color-border:        rgba(108, 99, 255, 0.25);
+      --color-text:          #e2e8f0;
+      --color-text-muted:    #a0aec0;
+      --color-text-subtle:   #718096;
+
+      --radius-sm:    6px;
+      --radius-md:    12px;
+      --radius-lg:    16px;
+      --radius-xl:    24px;
+      --radius-full:  9999px;
+
+      --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.4);
+      --transition:  0.2s ease;
+
+      --sidebar-width: 280px;
+    }
+
+    /* ---------- Reset ---------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ---------- Focus styles (keyboard navigation) ---------- */
+    :focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* ---------- Layout ---------- */
+    .app-wrapper {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ---------- Sidebar ---------- */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--color-surface);
+      border-right: 1px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 16px;
+      gap: 24px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 8px;
+    }
+    .sidebar-logo svg { flex-shrink: 0; }
+    .sidebar-logo-text { font-size: 1.25rem; font-weight: 700; color: var(--color-primary); }
+    .sidebar-logo-sub  { font-size: 0.7rem;  color: var(--color-text-muted); margin-top: 1px; }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nav-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+      padding: 0 8px;
+      margin-bottom: 4px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    .nav-item:hover,
+    .nav-item.active {
+      background: rgba(108, 99, 255, 0.15);
+      color: var(--color-primary);
+    }
+    .nav-item.active { font-weight: 600; }
+    .nav-item svg { flex-shrink: 0; }
+
+    /* Scan status badge */
+    .scan-status {
+      margin-top: auto;
+      padding: 12px;
+      background: rgba(108, 99, 255, 0.1);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+    }
+    .scan-status-label {
+      color: var(--color-text-subtle);
+      margin-bottom: 4px;
+    }
+    .scan-status-value {
+      color: var(--color-text);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-success);
+      flex-shrink: 0;
+    }
+    .status-dot.idle    { background: var(--color-text-subtle); }
+    .status-dot.loading { background: var(--color-warning); animation: pulse 1s infinite; }
+    .status-dot.done    { background: var(--color-success); }
+    .status-dot.error   { background: var(--color-danger); }
+
+    /* ---------- Main content ---------- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%);
+    }
+
+    .main-header {
+      padding: 32px 40px 24px;
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .main-header-text h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #ffffff 0%, var(--color-primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .main-header-text p {
+      color: var(--color-text-muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .badge-ai {
+      background: rgba(108, 99, 255, 0.2);
+      color: var(--color-primary);
+      border: 1px solid var(--color-border);
+    }
+
+    /* ---------- Content grid ---------- */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      padding: 32px 40px;
+    }
+    .content-grid.single-col { grid-template-columns: 1fr; }
+
+    /* ---------- Cards ---------- */
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--color-text);
+    }
+    .card-title svg { color: var(--color-primary); }
+
+    /* ---------- Upload area ---------- */
+    .upload-area {
+      border: 2px dashed var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--transition), background var(--transition);
+      position: relative;
+    }
+    .upload-area:hover,
+    .upload-area.drag-over {
+      border-color: var(--color-primary);
+      background: rgba(108, 99, 255, 0.06);
+    }
+    .upload-area.drag-over { border-style: solid; }
+
+    /* Hidden real file input, visually replaced by upload-area label */
+    #fileInput { display: none; }
+
+    .upload-icon {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 12px;
+      background: rgba(108, 99, 255, 0.15);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .upload-title { font-weight: 600; margin-bottom: 4px; }
+    .upload-sub   { font-size: 0.82rem; color: var(--color-text-muted); }
+    .upload-hint  {
+      margin-top: 12px;
+      font-size: 0.75rem;
+      color: var(--color-text-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .hint-chip {
+      padding: 3px 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: var(--radius-full);
+      border: 1px solid var(--color-border);
+    }
+
+    /* Preview image */
+    .preview-container {
+      position: relative;
+      margin-top: 16px;
+      display: none;
+    }
+    .preview-container.visible { display: block; }
+    .preview-img {
+      width: 100%;
+      max-height: 260px;
+      object-fit: contain;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      display: block;
+    }
+    .preview-remove {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(0,0,0,0.7);
+      border: none;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      line-height: 1;
+      transition: background var(--transition);
+    }
+    .preview-remove:hover { background: var(--color-danger); }
+
+    /* ---------- Symptom chips ---------- */
+    .symptom-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .symptom-chip {
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--color-border);
+      background: rgba(255,255,255,0.04);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: all var(--transition);
+      user-select: none;
+    }
+    .symptom-chip:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+    .symptom-chip.selected {
+      background: rgba(108, 99, 255, 0.2);
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+      font-weight: 600;
+    }
+
+    /* ---------- Buttons ---------- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: var(--radius-md);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all var(--transition);
+    }
+    .btn:disabled,
+    .btn[aria-disabled="true"] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+      color: #fff;
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+    }
+    .btn-primary:not(:disabled):not([aria-disabled="true"]):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(108, 99, 255, 0.4);
+    }
+    .btn-secondary {
+      background: rgba(255,255,255,0.07);
+      color: var(--color-text);
+      border: 1px solid var(--color-border);
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.12); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--color-text-muted);
+      border: 1px solid var(--color-border);
+    }
+    .btn-ghost:hover {
+      color: var(--color-text);
+      border-color: var(--color-text-muted);
+    }
+    .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+
+    /* Spinner inside button */
+    .btn .spinner-sm {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    /* ---------- Progress bars ---------- */
+    .progress-bar-track {
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+      transition: width 0.4s ease;
+    }
+
+    /* ---------- Results section ---------- */
+    .results-section { display: none; }
+    .results-section.visible { display: block; }
+
+    .confidence-meter {
+      margin-bottom: 20px;
+    }
+    .confidence-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .confidence-label { font-size: 0.85rem; color: var(--color-text-muted); }
+    .confidence-value { font-size: 1.5rem; font-weight: 700; color: var(--color-primary); }
+
+    .diagnosis-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .diagnosis-meta {
+      font-size: 0.82rem;
+      color: var(--color-text-muted);
+      margin-bottom: 16px;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .detail-item {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+    }
+    .detail-item-label { font-size: 0.72rem; color: var(--color-text-subtle); text-transform: uppercase; letter-spacing: 0.06em; }
+    .detail-item-value { font-size: 0.95rem; font-weight: 600; margin-top: 2px; }
+
+    .report-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    /* Risk badges */
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .risk-low    { background: rgba(72, 187, 120, 0.2); color: var(--color-success); }
+    .risk-medium { background: rgba(246, 173, 85, 0.2); color: var(--color-warning); }
+    .risk-high   { background: rgba(252, 129, 129, 0.2); color: var(--color-danger); }
+
+    /* ---------- Top diagnoses list ---------- */
+    .dx-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .dx-item {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+    }
+    .dx-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .dx-item-name   { font-size: 0.88rem; font-weight: 600; }
+    .dx-item-pct    { font-size: 0.8rem; font-weight: 700; color: var(--color-primary); }
+
+    /* ---------- Disclaimer ---------- */
+    .disclaimer {
+      margin-top: 24px;
+      padding: 14px 16px;
+      background: rgba(246, 173, 85, 0.1);
+      border: 1px solid rgba(246, 173, 85, 0.3);
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+      color: var(--color-warning);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .disclaimer svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* ---------- Error / feedback ---------- */
+    .error-box {
+      display: none;
+      padding: 12px 16px;
+      background: rgba(252, 129, 129, 0.1);
+      border: 1px solid rgba(252, 129, 129, 0.35);
+      border-radius: var(--radius-md);
+      font-size: 0.85rem;
+      color: var(--color-danger);
+      margin-top: 12px;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .error-box.visible { display: flex; }
+
+    /* ---------- Loading overlay ---------- */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 15, 35, 0.8);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .loading-overlay.visible { display: flex; }
+    .spinner-lg {
+      width: 52px; height: 52px;
+      border: 4px solid rgba(108, 99, 255, 0.2);
+      border-top-color: var(--color-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .loading-text { color: var(--color-text-muted); font-size: 0.9rem; }
+
+    /* ---------- Toast notifications ---------- */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .toast {
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      pointer-events: auto;
+      animation: slideInRight 0.25s ease, fadeOut 0.3s ease 2.7s forwards;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 320px;
+    }
+    .toast-success { background: var(--color-success); }
+    .toast-warning { background: var(--color-warning); color: #1a1a1a; }
+    .toast-error   { background: var(--color-danger); }
+    .toast-info    { background: var(--color-primary); }
+
+    /* ---------- Animations ---------- */
+    @keyframes spin       { to { transform: rotate(360deg); } }
+    @keyframes pulse      { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes fadeIn     { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(40px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes fadeOut    { to { opacity: 0; } }
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+
+    .fade-in { animation: fadeIn 0.35s ease; }
+
+    /* ---------- Empty state ---------- */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--color-text-muted);
+    }
+    .empty-state svg { margin: 0 auto 16px; opacity: 0.35; }
+    .empty-state h3  { font-size: 1rem; margin-bottom: 6px; color: var(--color-text); }
+    .empty-state p   { font-size: 0.82rem; }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 900px) {
+      .content-grid { grid-template-columns: 1fr; padding: 20px 24px; }
+      .main-header  { padding: 24px; }
+    }
+    @media (max-width: 680px) {
+      .sidebar { display: none; }
+      .content-grid { padding: 16px; }
+      .main-header { padding: 16px; }
+      .detail-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
+
 <body>
-    <h1>Welcome to SkinScan</h1>
-    <p>Your ultimate skin health monitoring tool!</p>
+  <!-- ===== LOADING OVERLAY ===== -->
+  <div
+    class="loading-overlay"
+    id="loadingOverlay"
+    role="status"
+    aria-live="assertive"
+    aria-label="Analyzing image, please wait"
+  >
+    <div class="spinner-lg" aria-hidden="true"></div>
+    <p class="loading-text" id="loadingText">Analyzing your image…</p>
+  </div>
+
+  <!-- ===== TOAST CONTAINER ===== -->
+  <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- ===== APP WRAPPER ===== -->
+  <div class="app-wrapper">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" aria-label="Application navigation">
+
+      <!-- Logo -->
+      <div class="sidebar-logo">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="url(#logoGrad)" />
+          <path d="M8 16c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="16" cy="16" r="3" fill="#fff"/>
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32">
+              <stop offset="0%" stop-color="#6c63ff"/>
+              <stop offset="100%" stop-color="#ff6584"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div>
+          <div class="sidebar-logo-text">SkinScan</div>
+          <div class="sidebar-logo-sub">AI Dermatology</div>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="sidebar-nav" aria-label="Main navigation">
+        <div class="nav-label" aria-hidden="true">Menu</div>
+        <button class="nav-item active" aria-current="page" aria-label="New Scan">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          New Scan
+        </button>
+        <button class="nav-item" aria-label="View scan history" disabled aria-disabled="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          History
+        </button>
+        <button class="nav-item" aria-label="Open settings" disabled aria-disabled="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+          Settings
+        </button>
+      </nav>
+
+      <!-- Scan status indicator -->
+      <div class="scan-status" role="status" aria-live="polite" aria-label="Current scan status">
+        <div class="scan-status-label">Status</div>
+        <div class="scan-status-value">
+          <div class="status-dot idle" id="statusDot" aria-hidden="true"></div>
+          <span id="statusText">Ready</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== MAIN ===== -->
+    <main class="main" id="mainContent">
+
+      <!-- Header -->
+      <header class="main-header">
+        <div class="main-header-text">
+          <h1>Skin Lesion Analysis</h1>
+          <p>Upload an image and receive an AI-assisted assessment in seconds.</p>
+        </div>
+        <span class="badge badge-ai" aria-label="AI-powered tool">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          AI-Powered
+        </span>
+      </header>
+
+      <!-- Content grid -->
+      <div class="content-grid" id="contentGrid">
+
+        <!-- ===== LEFT COLUMN: Upload & Symptoms ===== -->
+        <section aria-labelledby="uploadHeading">
+
+          <!-- Upload card -->
+          <div class="card" id="uploadCard">
+            <h2 class="card-title" id="uploadHeading">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload Image
+            </h2>
+
+            <!-- File input label acts as the drop zone -->
+            <label
+              class="upload-area"
+              for="fileInput"
+              id="uploadArea"
+              tabindex="0"
+              role="button"
+              aria-label="Upload skin lesion image. Supports JPG, PNG, WEBP up to 5 MB. You can also drag and drop or paste with Ctrl+V."
+              onkeydown="if(event.key==='Enter'||event.key===' '){document.getElementById('fileInput').click();}"
+            >
+              <div class="upload-icon" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6c63ff" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              <p class="upload-title">Drop image here or click to browse</p>
+              <p class="upload-sub">You can also paste an image with <kbd>Ctrl+V</kbd> / <kbd>Cmd+V</kbd></p>
+              <div class="upload-hint" aria-hidden="true">
+                <span class="hint-chip">JPG</span>
+                <span class="hint-chip">PNG</span>
+                <span class="hint-chip">WEBP</span>
+                <span class="hint-chip">Max 5 MB</span>
+              </div>
+            </label>
+
+            <!-- Real file input (hidden, associated with label above) -->
+            <input
+              type="file"
+              id="fileInput"
+              name="skin_image"
+              accept="image/jpeg,image/png,image/webp"
+              aria-label="Choose a skin lesion image file"
+            />
+
+            <!-- Image preview -->
+            <div class="preview-container" id="previewContainer" aria-live="polite">
+              <img
+                class="preview-img"
+                id="previewImg"
+                src=""
+                alt="Preview of the uploaded skin lesion image"
+              />
+              <button
+                class="preview-remove"
+                id="removeImageBtn"
+                aria-label="Remove selected image"
+                type="button"
+              >×</button>
+            </div>
+
+            <!-- Error box (screen-reader-friendly live region) -->
+            <div
+              class="error-box"
+              id="errorBox"
+              role="alert"
+              aria-live="polite"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16"/></svg>
+              <span id="errorText">Something went wrong.</span>
+            </div>
+          </div>
+
+          <!-- Symptoms card -->
+          <div class="card" style="margin-top: 24px;" id="symptomsCard">
+            <h2 class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+              Additional Symptoms
+            </h2>
+            <p style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:12px;">
+              Select any symptoms you are experiencing (optional):
+            </p>
+            <div
+              class="symptom-grid"
+              id="symptomGrid"
+              role="group"
+              aria-label="Symptom selection"
+            >
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Analyze button -->
+          <button
+            class="btn btn-primary fade-in"
+            id="analyzeBtn"
+            type="button"
+            style="margin-top: 24px;"
+            aria-label="Analyze uploaded skin image"
+            disabled
+            aria-disabled="true"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Analyze Image
+          </button>
+        </section>
+
+        <!-- ===== RIGHT COLUMN: Results ===== -->
+        <section aria-labelledby="resultsHeading" aria-live="polite">
+
+          <!-- Empty state -->
+          <div class="card" id="emptyState">
+            <div class="empty-state">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <h3>No Results Yet</h3>
+              <p>Upload a skin image and press <strong>Analyze Image</strong> to get an AI-assisted assessment.</p>
+            </div>
+          </div>
+
+          <!-- Results (hidden until analysis completes) -->
+          <div class="results-section" id="resultsSection" aria-labelledby="resultsHeading">
+            <!-- Confidence -->
+            <div class="card fade-in">
+              <h2 class="card-title" id="resultsHeading">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Analysis Result
+              </h2>
+
+              <div class="confidence-meter">
+                <div class="confidence-header">
+                  <span class="confidence-label">Confidence</span>
+                  <span class="confidence-value" id="confidenceValue" aria-live="polite">—</span>
+                </div>
+                <div class="progress-bar-track">
+                  <div
+                    class="progress-bar-fill"
+                    id="confidenceBar"
+                    role="progressbar"
+                    aria-valuenow="0"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-label="Confidence level"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+
+              <div class="diagnosis-title" id="diagnosisTitle">—</div>
+              <div class="diagnosis-meta" id="diagnosisMeta"></div>
+
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <div class="detail-item-label">Risk Level</div>
+                  <div class="detail-item-value" id="riskLevelValue">—</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-item-label">Category</div>
+                  <div class="detail-item-value" id="categoryValue">—</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-item-label">Symptoms Noted</div>
+                  <div class="detail-item-value" id="symptomsValue">—</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-item-label">Recommendation</div>
+                  <div class="detail-item-value" id="recommendationValue">—</div>
+                </div>
+              </div>
+
+              <!-- Report action buttons -->
+              <div class="report-actions">
+                <button
+                  class="btn btn-secondary btn-sm"
+                  id="copyReportBtn"
+                  type="button"
+                  aria-label="Copy diagnosis report to clipboard"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  Copy Report
+                </button>
+                <button
+                  class="btn btn-ghost btn-sm"
+                  id="downloadReportBtn"
+                  type="button"
+                  aria-label="Download diagnosis report as text file"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download Report
+                </button>
+              </div>
+            </div>
+
+            <!-- Top diagnoses list -->
+            <div class="card fade-in" style="margin-top: 16px;">
+              <h3 class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Differential Diagnoses
+              </h3>
+              <ul class="dx-list" id="dxList" aria-label="Top differential diagnoses">
+                <!-- Populated by JS -->
+              </ul>
+            </div>
+
+            <!-- Disclaimer -->
+            <div class="disclaimer" role="note">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span><strong>Medical Disclaimer:</strong> This tool provides AI-assisted analysis for informational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional.</span>
+            </div>
+          </div>
+        </section>
+      </div><!-- /.content-grid -->
+    </main><!-- /.main -->
+  </div><!-- /.app-wrapper -->
+
+  <!-- ===== SCRIPTS ===== -->
+  <script>
+    /**
+     * SkinScan – frontend logic
+     * ─────────────────────────
+     * Constants, helpers, event wiring and API integration.
+     */
+
+    /* ─── Constants ─────────────────────────────────────────── */
+    const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+    const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    const SUPPORTED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+    const API_ENDPOINT = '/predict';
+
+    const SYMPTOMS = [
+      'Itching', 'Burning', 'Bleeding', 'Color change',
+      'Size increase', 'Irregular border', 'Multiple lesions', 'Pain',
+    ];
+
+    /* ─── State ──────────────────────────────────────────────── */
+    let selectedFile   = null;
+    let selectedSymptoms = new Set();
+    let lastResult     = null;
+
+    /* ─── DOM refs ───────────────────────────────────────────── */
+    const uploadArea      = document.getElementById('uploadArea');
+    const fileInput       = document.getElementById('fileInput');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewImg      = document.getElementById('previewImg');
+    const removeImageBtn  = document.getElementById('removeImageBtn');
+    const errorBox        = document.getElementById('errorBox');
+    const errorText       = document.getElementById('errorText');
+    const analyzeBtn      = document.getElementById('analyzeBtn');
+    const loadingOverlay  = document.getElementById('loadingOverlay');
+    const loadingText     = document.getElementById('loadingText');
+    const statusDot       = document.getElementById('statusDot');
+    const statusTextEl    = document.getElementById('statusText');
+    const emptyState      = document.getElementById('emptyState');
+    const resultsSection  = document.getElementById('resultsSection');
+    const symptomGrid     = document.getElementById('symptomGrid');
+    const dxList          = document.getElementById('dxList');
+    const confidenceValue = document.getElementById('confidenceValue');
+    const confidenceBar   = document.getElementById('confidenceBar');
+    const diagnosisTitle  = document.getElementById('diagnosisTitle');
+    const diagnosisMeta   = document.getElementById('diagnosisMeta');
+    const riskLevelValue  = document.getElementById('riskLevelValue');
+    const categoryValue   = document.getElementById('categoryValue');
+    const symptomsValue   = document.getElementById('symptomsValue');
+    const recommendationValue = document.getElementById('recommendationValue');
+    const copyReportBtn   = document.getElementById('copyReportBtn');
+    const downloadReportBtn = document.getElementById('downloadReportBtn');
+
+    /* ─── Symptom chips ──────────────────────────────────────── */
+    /**
+     * Renders clickable symptom chips inside the symptom grid.
+     */
+    function renderSymptoms() {
+      SYMPTOMS.forEach(symptom => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'symptom-chip';
+        chip.textContent = symptom;
+        chip.setAttribute('aria-pressed', 'false');
+        chip.setAttribute('aria-label', `Symptom: ${symptom}`);
+        chip.addEventListener('click', () => toggleSymptom(symptom, chip));
+        symptomGrid.appendChild(chip);
+      });
+    }
+
+    /**
+     * Toggles the selected state of a symptom chip.
+     * @param {string} symptom - Symptom label
+     * @param {HTMLElement} chip - The chip button element
+     */
+    function toggleSymptom(symptom, chip) {
+      if (selectedSymptoms.has(symptom)) {
+        selectedSymptoms.delete(symptom);
+        chip.classList.remove('selected');
+        chip.setAttribute('aria-pressed', 'false');
+      } else {
+        selectedSymptoms.add(symptom);
+        chip.classList.add('selected');
+        chip.setAttribute('aria-pressed', 'true');
+      }
+    }
+
+    /* ─── File validation ────────────────────────────────────── */
+    /**
+     * Validates a file for type and size constraints.
+     * @param {File} file
+     * @returns {{ valid: boolean, error?: string }}
+     */
+    function validateFile(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      if (!SUPPORTED_MIME_TYPES.includes(file.type) && !SUPPORTED_EXTENSIONS.includes(ext)) {
+        return {
+          valid: false,
+          error: `Unsupported file type "${file.type || ext}". Please use JPG, PNG, or WEBP.`,
+        };
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+        return {
+          valid: false,
+          error: `File is too large (${sizeMB} MB). Maximum allowed size is 5 MB.`,
+        };
+      }
+      return { valid: true };
+    }
+
+    /* ─── Image handling ─────────────────────────────────────── */
+    /**
+     * Loads a valid image file: shows preview and enables the analyze button.
+     * @param {File} file
+     */
+    function loadFile(file) {
+      const validation = validateFile(file);
+      if (!validation.valid) {
+        showError(validation.error);
+        return;
+      }
+      clearError();
+      selectedFile = file;
+      const url = URL.createObjectURL(file);
+      previewImg.src = url;
+      previewImg.alt = `Preview of ${file.name}`;
+      previewContainer.classList.add('visible');
+      setAnalyzeEnabled(true);
+      showToast('Image loaded successfully', 'success');
+    }
+
+    /**
+     * Removes the currently loaded image and resets UI state.
+     */
+    function removeImage() {
+      selectedFile = null;
+      previewImg.src = '';
+      previewImg.alt = 'Preview of the uploaded skin lesion image';
+      previewContainer.classList.remove('visible');
+      fileInput.value = '';
+      setAnalyzeEnabled(false);
+      clearError();
+    }
+
+    /* ─── UI state helpers ───────────────────────────────────── */
+    /**
+     * Enables or disables the Analyze button.
+     * @param {boolean} enabled
+     */
+    function setAnalyzeEnabled(enabled) {
+      analyzeBtn.disabled = !enabled;
+      analyzeBtn.setAttribute('aria-disabled', String(!enabled));
+    }
+
+    /**
+     * Shows an error message in the error box.
+     * @param {string} message
+     */
+    function showError(message) {
+      errorText.textContent = message;
+      errorBox.classList.add('visible');
+    }
+
+    /** Hides the error box. */
+    function clearError() {
+      errorBox.classList.remove('visible');
+      errorText.textContent = '';
+    }
+
+    /**
+     * Updates the sidebar scan status indicator.
+     * @param {'idle'|'loading'|'done'|'error'} state
+     * @param {string} [label]
+     */
+    function setStatus(state, label) {
+      statusDot.className = `status-dot ${state}`;
+      statusTextEl.textContent = label || capitalize(state);
+    }
+
+    /**
+     * Shows or hides the full-screen loading overlay.
+     * @param {boolean} visible
+     * @param {string} [message]
+     */
+    function setLoading(visible, message = 'Analyzing your image…') {
+      loadingText.textContent = message;
+      loadingOverlay.classList.toggle('visible', visible);
+    }
+
+    /* ─── Toast notifications ────────────────────────────────── */
+    /**
+     * Displays a temporary toast notification.
+     * @param {string} message
+     * @param {'success'|'warning'|'error'|'info'} [type='info']
+     */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.setAttribute('role', 'status');
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3200);
+    }
+
+    /* ─── Results rendering ──────────────────────────────────── */
+    /**
+     * Renders API prediction results into the results panel.
+     * @param {object} data - API response object
+     */
+    function renderResults(data) {
+      const pct  = Math.round((data.confidence ?? 0) * 100);
+      const name = data.prediction ?? data.label ?? 'Unknown';
+      const risk = data.risk_level ?? inferRisk(pct);
+      const cat  = data.category ?? '—';
+      const rec  = data.recommendation ?? 'Consult a dermatologist';
+      const dxs  = data.top_predictions ?? [];
+
+      /* Confidence bar */
+      confidenceValue.textContent = `${pct}%`;
+      confidenceBar.style.width   = `${pct}%`;
+      confidenceBar.setAttribute('aria-valuenow', pct);
+
+      /* Diagnosis headline */
+      diagnosisTitle.textContent = name;
+      diagnosisMeta.textContent  = data.description ?? '';
+
+      /* Detail cells */
+      riskLevelValue.innerHTML = buildRiskBadge(risk);
+      categoryValue.textContent = cat;
+      symptomsValue.textContent = selectedSymptoms.size
+        ? [...selectedSymptoms].join(', ')
+        : 'None reported';
+      recommendationValue.textContent = rec;
+
+      /* Differential diagnoses list */
+      dxList.innerHTML = '';
+      if (dxs.length) {
+        dxs.forEach(dx => {
+          const pctDx = Math.round((dx.confidence ?? dx.probability ?? 0) * 100);
+          const li = document.createElement('li');
+          li.className = 'dx-item';
+          li.innerHTML = `
+            <div class="dx-item-header">
+              <span class="dx-item-name">${escapeHtml(dx.label ?? dx.name ?? '—')}</span>
+              <span class="dx-item-pct">${pctDx}%</span>
+            </div>
+            <div class="progress-bar-track">
+              <div
+                class="progress-bar-fill"
+                role="progressbar"
+                aria-valuenow="${pctDx}"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-label="${escapeHtml(dx.label ?? dx.name ?? '')} confidence ${pctDx}%"
+                style="width:${pctDx}%"
+              ></div>
+            </div>`;
+          dxList.appendChild(li);
+        });
+      } else {
+        dxList.innerHTML = '<li style="color:var(--color-text-muted);font-size:0.85rem;">No differential data available.</li>';
+      }
+
+      /* Show results panel */
+      emptyState.style.display   = 'none';
+      resultsSection.classList.add('visible');
+      lastResult = { name, pct, risk, cat, rec, dxs, symptoms: [...selectedSymptoms] };
+    }
+
+    /* ─── API call ───────────────────────────────────────────── */
+    /**
+     * Sends the image (and optional symptoms) to the prediction API.
+     */
+    async function analyzeImage() {
+      if (!selectedFile) return;
+
+      clearError();
+      setLoading(true, 'Analyzing your image…');
+      setStatus('loading', 'Analyzing…');
+      analyzeBtn.disabled = true;
+      analyzeBtn.innerHTML = '<div class="spinner-sm" aria-hidden="true"></div> Analyzing…';
+
+      try {
+        const formData = new FormData();
+        formData.append('image', selectedFile);
+        if (selectedSymptoms.size) {
+          formData.append('symptoms', [...selectedSymptoms].join(','));
+        }
+
+        const response = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          let detail = '';
+          try { detail = (await response.json()).detail ?? ''; } catch (_) { /* ignore */ }
+          throw Object.assign(
+            new Error(`Server error ${response.status}: ${detail || response.statusText}`),
+            { isNetworkError: false }
+          );
+        }
+
+        const data = await response.json();
+        renderResults(data);
+        setStatus('done', 'Complete');
+        showToast('Analysis complete!', 'success');
+      } catch (err) {
+        const isNetwork = !navigator.onLine || err.name === 'TypeError';
+        const msg = isNetwork
+          ? 'Network error – please check your connection and try again.'
+          : err.message || 'An unexpected error occurred. Please try again.';
+        showError(msg);
+        setStatus('error', 'Error');
+        showToast(msg, 'error');
+      } finally {
+        setLoading(false);
+        analyzeBtn.disabled = false;
+        analyzeBtn.setAttribute('aria-disabled', 'false');
+        analyzeBtn.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          Analyze Image`;
+      }
+    }
+
+    /* ─── Report copy / download ─────────────────────────────── */
+    /**
+     * Builds a plain-text report string from the last result.
+     * @returns {string}
+     */
+    function buildReportText() {
+      if (!lastResult) return '';
+      const lines = [
+        'SkinScan – Analysis Report',
+        '═'.repeat(40),
+        `Diagnosis       : ${lastResult.name}`,
+        `Confidence      : ${lastResult.pct}%`,
+        `Risk Level      : ${lastResult.risk}`,
+        `Category        : ${lastResult.cat}`,
+        `Symptoms Noted  : ${lastResult.symptoms.join(', ') || 'None'}`,
+        `Recommendation  : ${lastResult.rec}`,
+        '',
+        'Differential Diagnoses:',
+      ];
+      if (lastResult.dxs.length) {
+        lastResult.dxs.forEach(dx => {
+          const p = Math.round((dx.confidence ?? dx.probability ?? 0) * 100);
+          lines.push(`  • ${dx.label ?? dx.name ?? '?'} – ${p}%`);
+        });
+      }
+      lines.push('', '─'.repeat(40));
+      lines.push('DISCLAIMER: This report is AI-generated and for informational');
+      lines.push('purposes only. Consult a qualified healthcare professional.');
+      return lines.join('\n');
+    }
+
+    /** Copies the report text to the clipboard. */
+    function copyReport() {
+      const text = buildReportText();
+      if (!text) return;
+      navigator.clipboard.writeText(text)
+        .then(() => showToast('Report copied to clipboard!', 'success'))
+        .catch(() => showToast('Could not copy – please try manually.', 'warning'));
+    }
+
+    /** Downloads the report as a .txt file. */
+    function downloadReport() {
+      const text = buildReportText();
+      if (!text) return;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `skinscan-report-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Report downloaded!', 'success');
+    }
+
+    /* ─── Utility helpers ────────────────────────────────────── */
+    /**
+     * Infers a risk level string from a confidence percentage.
+     * @param {number} pct
+     * @returns {'High'|'Medium'|'Low'}
+     */
+    function inferRisk(pct) {
+      if (pct >= 75) return 'High';
+      if (pct >= 45) return 'Medium';
+      return 'Low';
+    }
+
+    /**
+     * Builds a coloured risk badge HTML string.
+     * @param {string} risk
+     * @returns {string}
+     */
+    function buildRiskBadge(risk) {
+      const cls = {
+        High: 'risk-high', Medium: 'risk-medium', Low: 'risk-low',
+      }[risk] ?? 'risk-low';
+      return `<span class="risk-badge ${cls}">${escapeHtml(risk)}</span>`;
+    }
+
+    /**
+     * Escapes HTML special characters to prevent XSS.
+     * @param {string} str
+     * @returns {string}
+     */
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    /**
+     * Capitalises the first character of a string.
+     * @param {string} s
+     * @returns {string}
+     */
+    function capitalize(s) {
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    /* ─── Drag-and-drop ──────────────────────────────────────── */
+    uploadArea.addEventListener('dragover', e => {
+      e.preventDefault();
+      uploadArea.classList.add('drag-over');
+    });
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('drag-over');
+    });
+    uploadArea.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadArea.classList.remove('drag-over');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) loadFile(file);
+    });
+
+    /* ─── Clipboard paste (Ctrl+V / Cmd+V) ──────────────────── */
+    document.addEventListener('paste', e => {
+      const items = e.clipboardData?.items ?? [];
+      for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) { loadFile(file); break; }
+        }
+      }
+    });
+
+    /* ─── File input change ──────────────────────────────────── */
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (file) loadFile(file);
+    });
+
+    /* ─── Remove image button ────────────────────────────────── */
+    removeImageBtn.addEventListener('click', removeImage);
+
+    /* ─── Analyze button ─────────────────────────────────────── */
+    analyzeBtn.addEventListener('click', analyzeImage);
+
+    /* ─── Report action buttons ──────────────────────────────── */
+    copyReportBtn.addEventListener('click', copyReport);
+    downloadReportBtn.addEventListener('click', downloadReport);
+
+    /* ─── Init ───────────────────────────────────────────────── */
+    renderSymptoms();
+    setStatus('idle', 'Ready');
+  </script>
 </body>
 </html>
